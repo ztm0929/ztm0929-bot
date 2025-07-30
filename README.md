@@ -1,1 +1,1 @@
-自用 Telegram 机器人，使用 grammY 开发，部署于 Cloudflare Workers
+自用 Telegram 机器人，使用 [grammY](https://grammy.dev/) 开发，部署于 [Cloudflare Workers](https://developers.cloudflare.com/workers/)
