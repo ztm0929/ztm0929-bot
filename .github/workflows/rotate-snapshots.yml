@@ -2,9 +2,7 @@ name: Rotate Tencent Cloud Snapshots
 
 on:
   schedule:
-    # 每天凌晨2点执行（UTC时间，对应北京时间上午10点）
     - cron: '0 2 * * *'
-  # 支持手动触发
   workflow_dispatch:
 
 jobs:
@@ -25,21 +23,8 @@ jobs:
       with:
         version: 8
         
-    - name: Get pnpm store directory
-      shell: bash
-      run: |
-        echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-        
-    - name: Setup pnpm cache
-      uses: actions/cache@v3
-      with:
-        path: ${{ env.STORE_PATH }}
-        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-        restore-keys: |
-          ${{ runner.os }}-pnpm-store-
-          
     - name: Install dependencies
-      run: pnpm install --frozen-lockfile
+      run: pnpm install
       
     - name: Run snapshot rotation
       run: pnpm exec tsx utils/rotate-snapshots.ts
