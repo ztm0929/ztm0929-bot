@@ -1,6 +1,6 @@
 {
-	"name": "grammybot",
-	"version": "0.0.0",
+	"name": "ztm0929-bot",
+	"version": "0.0.1",
 	"private": true,
 	"scripts": {
 		"deploy": "wrangler deploy",
@@ -16,6 +16,7 @@
 		"wrangler": "^4.26.1"
 	},
 	"dependencies": {
-		"grammy": "^1.37.0"
+		"grammy": "^1.37.0",
+		"tencentcloud-sdk-nodejs-lighthouse": "^4.1.80"
 	}
 }
