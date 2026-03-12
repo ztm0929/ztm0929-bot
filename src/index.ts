@@ -31,6 +31,41 @@ export default {
       await ctx.reply("Hello, ztm0929!");
     });
 
+    // 监听频道消息
+    bot.on("channel_post", async (ctx) => {
+      const channelPost = ctx.channelPost;
+      
+      console.log("=== Channel Message Received ===");
+      console.log("Chat ID:", channelPost.chat.id);
+      console.log("Chat Title:", channelPost.chat.title);
+      console.log("Message ID:", channelPost.message_id);
+      console.log("Date:", new Date(channelPost.date * 1000).toISOString());
+      
+      if (channelPost.text) {
+        console.log("Text:", channelPost.text);
+      }
+      
+      if (channelPost.caption) {
+        console.log("Caption:", channelPost.caption);
+      }
+      
+      if (channelPost.photo) {
+        console.log("Photo IDs:", channelPost.photo.map(p => p.file_id));
+      }
+      
+      if (channelPost.video) {
+        console.log("Video ID:", channelPost.video.file_id);
+      }
+      
+      console.log("Full message object:", JSON.stringify(channelPost, null, 2));
+      console.log("================================\n");
+    });
+
+    // 错误处理
+    bot.catch((err) => {
+      console.error("Bot error:", err);
+    });
+
     return webhookCallback(bot, "cloudflare-mod")(request);
   },
 };
