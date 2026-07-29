@@ -12,9 +12,11 @@ export async function getLatestEligibleRelease(
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
-    Authorization: `Bearer ${env.GITHUB_TOKEN}`,
     "User-Agent": "tg-release-notification",
   };
+
+  const token = env.GITHUB_TOKEN?.trim();
+  if (token) headers.Authorization = `Bearer ${token}`;
 
   if (opts.useEtag) {
     const etag = await getEtag(env, fullName);

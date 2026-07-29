@@ -1,4 +1,4 @@
-name = "tg-release-notification"
+name = "ztm0929-bot"
 main = "src/index.ts"
 compatibility_date = "2026-05-19"
 

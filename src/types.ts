@@ -7,7 +7,7 @@ export interface Env {
   TELEGRAM_BOT_TOKEN: string;
   TELEGRAM_WEBHOOK_SECRET?: string;
 
-  GITHUB_TOKEN: string;
+  GITHUB_TOKEN?: string;
   GITHUB_API_BASE?: string;
   KEYWORD_BLOCKLIST?: string;
   // MediaWiki and DeepSeek integration
