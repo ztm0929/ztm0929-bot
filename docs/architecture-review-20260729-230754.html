@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Architecture review — tg-release-notification</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { border-style: dashed; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+      .leak { color: #dc2626; }
+      .arrow { color: #94a3b8; font-size: 24px; line-height: 1; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-6xl mx-auto px-6 py-12 space-y-12">
+      <header class="border-b border-stone-200 pb-7">
+        <p class="text-xs uppercase tracking-[.2em] text-slate-500">Architecture review · 2026-07-29</p>
+        <h1 class="mt-2 text-4xl font-serif font-semibold">tg-release-notification</h1>
+        <div class="mt-5 flex flex-wrap gap-3 text-xs text-slate-600">
+          <span class="rounded border border-slate-400 px-2 py-1">实线框：module</span>
+          <span class="rounded border border-dashed border-slate-400 px-2 py-1">虚线框：seam</span>
+          <span class="rounded border border-red-300 bg-red-50 px-2 py-1">红色：leakage</span>
+          <span class="rounded bg-slate-800 px-2 py-1 text-white">深色粗框：deep module</span>
+        </div>
+      </header>
+
+      <section id="candidates" class="space-y-10">
+        <article id="release-delivery" class="rounded-2xl border border-stone-200 bg-white p-7 shadow-sm">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Candidate 01</p><h2 class="mt-1 text-2xl font-serif font-semibold">加深 Release delivery module</h2></div>
+            <div class="flex gap-2"><span class="rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-800">Strong</span><span class="rounded-full bg-indigo-100 px-3 py-1 text-sm text-indigo-800">in-process</span></div>
+          </div>
+          <p class="mt-4 font-mono text-sm text-slate-600">src/cron.ts · src/telegram.ts · src/github.ts · src/kv.ts · src/types.ts</p>
+          <div class="mt-6 grid gap-5 lg:grid-cols-2">
+            <div class="rounded-xl bg-stone-100 p-5"><p class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Before · shallow choreography</p>
+              <pre class="mermaid">flowchart TD
+                C[cron module] --> G[GitHub adapter]
+                C --> K[KV adapter]
+                C --> T[Telegram module]
+                T --> G
+                T --> K
+                G --> K
+                classDef leak fill:#fff1f2,stroke:#dc2626,stroke-width:2px;
+                class C,T leak</pre>
+              <p class="mt-3 text-sm leak">两个 caller 各自知道 preview、eligibility、state 与发送顺序。</p>
+            </div>
+            <div class="rounded-xl p-5 text-white deep"><p class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-300">After · deep delivery module</p>
+              <div class="seam rounded-xl border-2 border-slate-400 p-4"><p class="text-xs uppercase tracking-wider text-slate-300">one external seam</p><div class="mt-3 rounded border-4 border-white bg-slate-900 p-5"><p class="font-semibold">Release delivery module</p><p class="mt-2 text-sm text-slate-300">selection · preview · delivery · state</p><div class="mt-5 grid grid-cols-3 gap-2 text-center text-xs text-slate-400"><span>GitHub<br>adapter</span><span>KV<br>adapter</span><span>Telegram<br>adapter</span></div></div></div>
+            </div>
+          </div>
+          <div class="mt-6 grid gap-5 md:grid-cols-2 text-sm"><div><h3 class="font-semibold">Problem</h3><p class="mt-1 text-slate-700">Release preview 与 channel release delivery 分居 cron module 和 Telegram module；两处调用同一 GitHub、KV 与 Telegram adapter，interface 细节跨 seam 泄漏。</p></div><div><h3 class="font-semibold">Solution</h3><p class="mt-1 text-slate-700">将 Release delivery 的选择、投递和状态推进收进一个 deep module；cron 与 Telegram command module 只触发该 module。</p></div></div>
+          <ul class="mt-5 grid gap-2 text-sm text-slate-700 md:grid-cols-3"><li>• locality：投递顺序集中</li><li>• leverage：两个 caller 复用行为</li><li>• interface 成为 test surface</li><li>• implementation 吸收协调细节</li><li>• deletion test：复杂度回到两 caller</li><li>• 无第二 adapter，不新增外部 seam</li></ul>
+        </article>
+
+        <article id="telegram-command" class="rounded-2xl border border-stone-200 bg-white p-7 shadow-sm">
+          <div class="flex flex-wrap items-start justify-between gap-3"><div><p class="text-xs uppercase tracking-wider text-slate-500">Candidate 02</p><h2 class="mt-1 text-2xl font-serif font-semibold">收拢 Telegram command module 的 command flow</h2></div><div class="flex gap-2"><span class="rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800">Worth exploring</span><span class="rounded-full bg-indigo-100 px-3 py-1 text-sm text-indigo-800">in-process</span></div></div>
+          <p class="mt-4 font-mono text-sm text-slate-600">src/telegram.ts · src/kv.ts · src/github.ts · src/wiki.ts · src/utils.ts</p>
+          <div class="mt-6 grid gap-5 lg:grid-cols-2">
+            <div class="rounded-xl bg-stone-100 p-5"><p class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Before · one growing dispatch function</p><div class="space-y-2"><div class="rounded border bg-white p-2 text-sm">parse + authorise</div><div class="arrow text-center">↓</div><div class="grid grid-cols-3 gap-2 text-xs"><div class="rounded border border-red-300 bg-red-50 p-2">/add<br>KV + GitHub + Telegram</div><div class="rounded border border-red-300 bg-red-50 p-2">/remove<br>KV + state</div><div class="rounded border border-red-300 bg-red-50 p-2">/wiki<br>MediaWiki + LLM</div></div><div class="arrow text-center">↓</div><div class="rounded border bg-white p-2 text-sm">Telegram message formatting</div></div></div>
+            <div class="rounded-xl p-5 text-white deep"><p class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-300">After · deep command module</p><div class="seam rounded-xl border-2 border-slate-400 p-4"><p class="text-xs uppercase tracking-wider text-slate-300">Telegram update seam</p><div class="mt-3 rounded border-4 border-white bg-slate-900 p-5"><p class="font-semibold">Telegram command module</p><p class="mt-2 text-sm text-slate-300">parse · authorise · select command flow · reply</p><p class="mt-5 text-xs text-slate-400">Subscription module and Wiki module sit behind internal seams.</p></div></div></div>
+          </div>
+          <div class="mt-6 grid gap-5 md:grid-cols-2 text-sm"><div><h3 class="font-semibold">Problem</h3><p class="mt-1 text-slate-700">一个 154 行 dispatch function 同时决定 command flow、Subscription 生命周期和 Wiki flow；每项新增行为扩大 interface 认知负担，且 tests 无法只越过 Telegram update seam。</p></div><div><h3 class="font-semibold">Solution</h3><p class="mt-1 text-slate-700">保持一个 Telegram update interface，将 command flow 留在 deep command module；仅当第二个 adapter 出现时，才把可变行为提升为真实 seam。</p></div></div>
+          <ul class="mt-5 grid gap-2 text-sm text-slate-700 md:grid-cols-3"><li>• locality：鉴权集中</li><li>• leverage：新增 command 不碰入口</li><li>• interface 成为 test surface</li><li>• implementation 吸收 reply 细节</li><li>• deletion test：流程散回入口</li><li>• 一个 adapter 仍是假设 seam</li></ul>
+        </article>
+
+        <article id="persistence" class="rounded-2xl border border-stone-200 bg-white p-7 shadow-sm">
+          <div class="flex flex-wrap items-start justify-between gap-3"><div><p class="text-xs uppercase tracking-wider text-slate-500">Candidate 03</p><h2 class="mt-1 text-2xl font-serif font-semibold">加深 Subscription state module</h2></div><div class="flex gap-2"><span class="rounded-full bg-slate-200 px-3 py-1 text-sm font-medium text-slate-700">Speculative</span><span class="rounded-full bg-indigo-100 px-3 py-1 text-sm text-indigo-800">local-substitutable</span></div></div>
+          <p class="mt-4 font-mono text-sm text-slate-600">src/kv.ts · src/cron.ts · src/telegram.ts</p>
+          <div class="mt-6 grid gap-5 lg:grid-cols-2">
+            <div class="rounded-xl bg-stone-100 p-5"><p class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Before · key protocol leaks</p><div class="grid gap-3"><div class="rounded border bg-white p-3 text-sm">Subscription list</div><div class="rounded border border-red-300 bg-red-50 p-3 text-sm">state:v1 / etag:v1 known by callers</div><div class="flex gap-2"><div class="flex-1 rounded border bg-white p-3 text-sm">cron module</div><div class="flex-1 rounded border bg-white p-3 text-sm">Telegram module</div></div></div></div>
+            <div class="rounded-xl p-5 text-white deep"><p class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-300">After · state protocol behind one module</p><div class="seam rounded-xl border-2 border-slate-400 p-4"><p class="text-xs uppercase tracking-wider text-slate-300">persistence seam</p><div class="mt-3 rounded border-4 border-white bg-slate-900 p-5"><p class="font-semibold">Subscription state module</p><p class="mt-2 text-sm text-slate-300">subscriptions · release state · cache invalidation</p><p class="mt-5 text-xs text-slate-400">KV adapter is replaceable for tests.</p></div></div></div>
+          </div>
+          <div class="mt-6 grid gap-5 md:grid-cols-2 text-sm"><div><h3 class="font-semibold">Problem</h3><p class="mt-1 text-slate-700">KV module 的小函数把 state-key、ETag 与移除时清理的协议暴露给两个 caller；目前 interface 接近 implementation，depth 较浅。</p></div><div><h3 class="font-semibold">Solution</h3><p class="mt-1 text-slate-700">只在 Subscription state 的不变量开始增长时收拢其 implementation；先不为单一 KV adapter 扩大 seam。</p></div></div>
+          <ul class="mt-5 grid gap-2 text-sm text-slate-700 md:grid-cols-3"><li>• locality：状态不变量集中</li><li>• leverage：迁移键协议一次</li><li>• adapter 可替换于 tests</li><li>• interface 缩小至领域操作</li><li>• deletion test：协议回到 callers</li><li>• 现状规模使它仍 speculative</li></ul>
+        </article>
+
+        <article id="snapshot-rotation" class="rounded-2xl border border-stone-200 bg-white p-7 shadow-sm">
+          <div class="flex flex-wrap items-start justify-between gap-3"><div><p class="text-xs uppercase tracking-wider text-slate-500">Candidate 04</p><h2 class="mt-1 text-2xl font-serif font-semibold">加深 Snapshot rotation module</h2></div><div class="flex gap-2"><span class="rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800">Worth exploring</span><span class="rounded-full bg-indigo-100 px-3 py-1 text-sm text-indigo-800">in-process</span></div></div>
+          <p class="mt-4 font-mono text-sm text-slate-600">utils/rotate-snapshots.ts · utils/snapshot.ts · utils/telegram.ts · utils/config.ts · .github/workflows/rotate-snapshots.yml</p>
+          <div class="mt-6 grid gap-5 lg:grid-cols-2"><div class="rounded-xl bg-stone-100 p-5"><p class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Before · policy leaks into CLI</p><div class="space-y-2"><div class="rounded border bg-white p-3 text-sm">workflow → CLI</div><div class="arrow text-center">↓</div><div class="grid grid-cols-3 gap-2 text-xs"><div class="rounded border border-red-300 bg-red-50 p-2">select<br>oldest</div><div class="rounded border border-red-300 bg-red-50 p-2">delete /<br>create</div><div class="rounded border border-red-300 bg-red-50 p-2">notify /<br>exit</div></div><div class="arrow text-center">↓</div><div class="rounded border bg-white p-3 text-sm">Tencent + Telegram modules</div></div></div><div class="rounded-xl p-5 text-white deep"><p class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-300">After · deep rotation module</p><div class="seam rounded-xl border-2 border-slate-400 p-4"><p class="text-xs uppercase tracking-wider text-slate-300">one CLI seam</p><div class="mt-3 rounded border-4 border-white bg-slate-900 p-5"><p class="font-semibold">Snapshot rotation module</p><p class="mt-2 text-sm text-slate-300">select · rotate · report outcome</p><div class="mt-5 grid grid-cols-3 gap-2 text-center text-xs text-slate-400"><span>Tencent<br>adapter</span><span>Telegram<br>adapter</span><span>clock / exit<br>adapter</span></div></div></div></div></div>
+          <div class="mt-6 grid gap-5 md:grid-cols-2 text-sm"><div><h3 class="font-semibold">Problem</h3><p class="mt-1 text-slate-700">CLI implementation 同时拥有删除失败即停止、创建、命名、结果分类、通知与 process exit；其 interface 使 tests 必须越过配置与外部调用细节。</p></div><div><h3 class="font-semibold">Solution</h3><p class="mt-1 text-slate-700">将 Snapshot rotation policy 收进 deep module，workflow 只启动该 module；外部调用保留为 implementation 内的 adapter。</p></div></div>
+          <ul class="mt-5 grid gap-2 text-sm text-slate-700 md:grid-cols-3"><li>• locality：轮换规则集中</li><li>• leverage：workflow 只学一个 interface</li><li>• tests 覆盖完整结果分类</li><li>• implementation 吸收 exit</li><li>• deletion test：规则回到 CLI</li><li>• 单一 Tencent adapter 不扩 seam</li></ul>
+        </article>
+      </section>
+      <section id="top-recommendation" class="rounded-2xl border-2 border-emerald-700 bg-emerald-50 p-7"><p class="text-xs font-semibold uppercase tracking-wider text-emerald-800">Top recommendation</p><h2 class="mt-1 text-2xl font-serif font-semibold">先加深 Release delivery module</h2><p class="mt-2 text-slate-700">它已在 cron 与 Subscription 新增后的 Release preview 重复出现；一个 module 可把投递策略、状态与 tests 集中到同一 interface，带来最高 locality 与 leverage。</p><a class="mt-4 inline-block font-medium text-emerald-800 underline" href="#release-delivery">查看 Candidate 01 →</a></section>
+    </main>
+  </body>
+</html>
