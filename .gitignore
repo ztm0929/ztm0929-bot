@@ -31,6 +31,3 @@ wrangler.toml.local
 
 # Session state
 .copilot/
-
-# pnpm workspace
-pnpm-workspace.yaml
