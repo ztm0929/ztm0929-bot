@@ -1,36 +1,44 @@
-import { Bot, Context, webhookCallback } from "grammy";
-
-export interface Env {
-  // Example binding to KV. Learn more at https://developers.cloudflare.com/workers/runtime-apis/kv/
-  // MY_KV_NAMESPACE: KVNamespace;
-  //
-  // Example binding to Durable Object. Learn more at https://developers.cloudflare.com/workers/runtime-apis/durable-objects/
-  // MY_DURABLE_OBJECT: DurableObjectNamespace;
-  //
-  // Example binding to R2. Learn more at https://developers.cloudflare.com/workers/runtime-apis/r2/
-  // MY_BUCKET: R2Bucket;
-  //
-  // Example binding to a Service. Learn more at https://developers.cloudflare.com/workers/runtime-apis/service-bindings/
-  // MY_SERVICE: Fetcher;
-  //
-  // Example binding to a Queue. Learn more at https://developers.cloudflare.com/queues/javascript-apis/
-  // MY_QUEUE: Queue;
-  BOT_INFO: string;
-  BOT_TOKEN: string;
-}
+import type { Env, TelegramUpdate } from "./types";
+import { handleTelegramUpdate } from "./telegram";
+import { runCronOnce } from "./cron";
+import { handleAdminSyncCommands } from "./admin";
 
 export default {
-  async fetch(
-    request: Request,
-    env: Env,
-    ctx: ExecutionContext,
-  ): Promise<Response> {
-    const bot = new Bot(env.BOT_TOKEN, { botInfo: JSON.parse(env.BOT_INFO) });
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
 
-    bot.command("start", async (ctx: Context) => {
-      await ctx.reply("Hello, ztm0929!");
-    });
+    if (url.pathname === "/health") {
+      return new Response("ok");
+    }
 
-    return webhookCallback(bot, "cloudflare-mod")(request);
+    if (url.pathname === "/admin/sync-commands" && request.method === "POST") {
+      return handleAdminSyncCommands(request, env);
+    }
+
+    if (url.pathname === "/telegram" && request.method === "POST") {
+      let update: TelegramUpdate;
+      try {
+        update = (await request.json()) as TelegramUpdate;
+      } catch {
+        return new Response("bad request", { status: 400 });
+      }
+
+      // Run handler and surface errors to logs for debugging
+      ctx.waitUntil((async () => {
+        try {
+          await handleTelegramUpdate(update, env);
+        } catch (e) {
+          console.error('handleTelegramUpdate failed', e);
+          throw e;
+        }
+      })());
+      return new Response("ok");
+    }
+
+    return new Response("not found", { status: 404 });
+  },
+
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(runCronOnce(env));
   },
 };
