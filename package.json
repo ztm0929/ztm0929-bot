@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "GitHub Release notification bot for Telegram (ztm0929 only)",
-  "packageManager": "pnpm@latest",
+  "packageManager": "pnpm@11.17.0",
   "main": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev",
